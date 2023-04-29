@@ -2,7 +2,7 @@ from django.shortcuts import render
 from .models import ICICIB22_investment,ICICIB22_profit,SBC_profit,SBC_investment
 from rest_framework.decorators import api_view
 from .serializers import IISerializer,IPSerializer,SISerializer,SPSerializer
-from math import ceil
+from math import ceil,floor
 
 def calculate(serialized,cmp,total_stocks_sold):
     net_investment = serialized['net_investment']
@@ -65,6 +65,18 @@ def calculate_profit(serialized):
         net_profit += d1['profit_amount']
     return {"net_profit": f"{net_profit} RS"}
 
+def Buy(investment_to_add,serialized,cmp,total_stocks_sold):
+    net_investment = serialized['net_investment']
+    present_number_of_stocks =int(serialized['stocks_added']) -  total_stocks_sold
+    current_avg_share_price = round(float(cmp/ present_number_of_stocks),2)
+
+    stocks_can_be_purchased_at_cmp = floor(investment_to_add/current_avg_share_price)
+
+    effective_apparant_share_price_at_cmp = round((net_investment+investment_to_add)/(present_number_of_stocks+stocks_can_be_purchased_at_cmp),2)
+
+    return {'stocks_can_be_purchased_at_cmp':stocks_can_be_purchased_at_cmp,'effective_apparant_share_price_at_cmp':effective_apparant_share_price_at_cmp}
+    
+
 @api_view(['GET'])
 def index(request):
     return render(request, 'index.html')
@@ -77,6 +89,7 @@ def get_profit_or_loss_icicib(request):
     else if loss then only get loss amount
     """
     serialized={}
+    investment_to_add= 7000 
     data= ICICIB22_investment.objects.all()
     serialized_data = IISerializer(data,many=True)
 
@@ -93,9 +106,18 @@ def get_profit_or_loss_icicib(request):
 
     result= calculate(serialized,cmp,total_stocks_sold)
     result1=calculate_profit(serialized1)
+
+
     result['net_profit']= result1['net_profit']
     result['total_stocks']= stocks_added -total_stocks_sold
     result['net_investment']= net_investment
+    result['apparant_share_price'] = round(result['net_investment']/result['total_stocks'],2)
+
+    buying_condition = Buy(investment_to_add,serialized,cmp,total_stocks_sold)
+
+    result['effective_apparant_share_price_at_cmp']=buying_condition['effective_apparant_share_price_at_cmp']
+    result['stocks_can_be_purchased_at_cmp']= buying_condition['stocks_can_be_purchased_at_cmp']
+    result['investment_to_add']=investment_to_add
     return render(request, 'profit_or_loss.html', result)
 
 @api_view(['GET'])
@@ -106,6 +128,7 @@ def get_profit_or_loss_sbc(request):
     else if loss then only get loss amount
     """
     serialized={}
+    investment_to_add = 7000
     data= SBC_investment.objects.all()
     serialized_data= SISerializer(data,many=True)
 
@@ -125,9 +148,11 @@ def get_profit_or_loss_sbc(request):
     result['net_profit']= result1['net_profit']
     result['total_stocks']= stocks_added -total_stocks_sold
     result['net_investment']= net_investment
+    result['apparant_share_price'] = round(result['net_investment']/result['total_stocks'],2)
+
+    buying_condition = Buy(investment_to_add,serialized,cmp,total_stocks_sold)
+
+    result['effective_apparant_share_price_at_cmp']=buying_condition['effective_apparant_share_price_at_cmp']
+    result['stocks_can_be_purchased_at_cmp']= buying_condition['stocks_can_be_purchased_at_cmp']
+    result['investment_to_add']=investment_to_add
     return render(request, 'profit_or_loss.html', result)
-
-
-
-
- 
