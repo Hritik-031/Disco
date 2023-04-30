@@ -1,12 +1,12 @@
 from django.shortcuts import render
-from .models import ICICIB22_investment,ICICIB22_profit,SBC_profit,SBC_investment
+from .models import ICICIB22_investment,ICICIB22_profit,SBC_profit,SBC_investment,SBC_highest_price
 from rest_framework.decorators import api_view
-from .serializers import IISerializer,IPSerializer,SISerializer,SPSerializer
+from .serializers import IISerializer,IPSerializer,SISerializer,SPSerializer,SBC_High_price_serializer
 from math import ceil,floor
 
-def calculate(serialized,cmp,total_stocks_sold):
+def calculate(serialized,cmp,total_stocks_sold,profit_margin_percentage,flag):
     net_investment = serialized['net_investment']
-    profit_margin_percentage = 1 # this is fixed. minimum return on profit should be 1% excluding deduction.
+    # this is fixed. minimum return on profit should be 1% excluding deduction.
     present_number_of_stocks =int(serialized['stocks_added']) -  total_stocks_sold
 
     ####current
@@ -18,7 +18,18 @@ def calculate(serialized,cmp,total_stocks_sold):
     current_diff= int(cmp)-net_investment
     current_percent_diff = round(float((cmp - net_investment) * 100/ net_investment),2)
     current_no_of_shares_to_sell= round(float(current_diff / current_avg_share_price),2)
-    
+    if flag=='sbc':
+        SBC_high_price_data = SBC_highest_price.objects.get(id=1)
+        serialized_data = SBC_High_price_serializer(SBC_high_price_data)
+        high_price = serialized_data.data['high_share_price']
+        if high_price < current_avg_share_price:
+            SBC_highest_price.objects.filter(id=1).update(high_share_price = current_avg_share_price)
+            percentage_deviation_from_high = 0
+        else:
+            percentage_deviation_from_high = f"{float(round((high_price-current_avg_share_price)*100/high_price,2))}"
+    else:
+        percentage_deviation_from_high= '-'
+        high_price = '-'
     ###economic selling shares condition at current condition
     economic_shares_to_sell = ceil(current_no_of_shares_to_sell)
     economic_avg_share_price = current_avg_share_price
@@ -29,7 +40,7 @@ def calculate(serialized,cmp,total_stocks_sold):
         economic_percent_diff = round(float((cmp - net_investment) * 100/ net_investment),2)
         economic_avg_share_price += 0.01
         cmp+=1
-
+    
     ####target
     '''
     this gives the target condition to sell the shares to gain the defined percentage of profit.
@@ -52,12 +63,12 @@ def calculate(serialized,cmp,total_stocks_sold):
 
     
     if current_diff < 0:
-        return {'current_scenerio':f"{current_diff} RS with {round(current_percent_diff,2)}% loss,current avg share price is {current_avg_share_price}",
+        return {'current_scenerio':f"{current_diff} RS with {round(current_percent_diff,2)}% loss,current avg share price is {current_avg_share_price} with {percentage_deviation_from_high}% deviation from high {high_price}",
                 "target_scenerio": f" target profit is {target_profit_expectation_price} at {profit_margin_percentage}% :: {target_shares_to_sell} shares are required to sell at {target_avg_share_price}RS per share"}
 
-    return {"current_scenerio": f"current profit is {current_diff} RS with {current_percent_diff}% profit :: {current_no_of_shares_to_sell} shares are required to sell. current avg share price is {current_avg_share_price} RS per share",
+    return {"current_scenerio": f"current profit is {current_diff} RS with {current_percent_diff}% profit :: {current_no_of_shares_to_sell} shares are required to sell. current avg share price is {current_avg_share_price} RS per share with {percentage_deviation_from_high}% deviation from high {high_price}",
             "target_scenerio": f" target profit is {target_profit_expectation_price} at {round(profit_margin_percentage,2)}% :: {target_shares_to_sell} shares are required to sell at {target_avg_share_price} RS per share",
-            "economic_scenerio": f"econmic profit is {economic_diff} RS with {economic_percent_diff}% :: shares to sell {economic_shares_to_sell}. economic avg share price : {round(economic_avg_share_price,2)} RS per share"}
+            "economic_scenerio": f"economic profit is {economic_diff} RS with {economic_percent_diff}% :: shares to sell {economic_shares_to_sell}. economic avg share price : {round(economic_avg_share_price,2)} RS per share"}
 
 def calculate_profit(serialized):
     net_profit=0
@@ -88,8 +99,19 @@ def get_profit_or_loss_icicib(request):
     required to sell to get the profit amount
     else if loss then only get loss amount
     """
+    '''
+    strategy:
+    assuming it has lower risk of loss as it covers avg of 22 stox 
+    treating ICICIB as a mutual fund 
+    remove profit if market remains down consecutively for 3 days and invest money as decided if 2 day fall and 1 day raise 
+    else add money monthly based on graph.
+    '''
+
     serialized={}
-    investment_to_add= 7000 
+    investment_to_add= 9000
+    cmp = int(request.GET['cmp'])
+    profit_margin_percentage = 1.2 # dont consider this for icicb 
+
     data= ICICIB22_investment.objects.all()
     serialized_data = IISerializer(data,many=True)
 
@@ -98,15 +120,13 @@ def get_profit_or_loss_icicib(request):
 
     serialized['net_investment']= net_investment
     serialized['stocks_added']= stocks_added
-    cmp = int(request.GET['cmp'])
 
     data1=ICICIB22_profit.objects.all()
     serialized1 = IPSerializer(data1,many=True)
     total_stocks_sold = sum([dict['stocks_sold'] for dict in serialized1.data])
 
-    result= calculate(serialized,cmp,total_stocks_sold)
+    result= calculate(serialized,cmp,total_stocks_sold,profit_margin_percentage,'icicib')
     result1=calculate_profit(serialized1)
-
 
     result['net_profit']= result1['net_profit']
     result['total_stocks']= stocks_added -total_stocks_sold
@@ -127,8 +147,18 @@ def get_profit_or_loss_sbc(request):
     required to sell to get the profit amount
     else if loss then only get loss amount
     """
+    '''
+    strategy:
+    -- as risk involves while trading a particular stock. so economical approach would be.
+    for SBC it is decided to apply stop loss at 15% of highest value.
+    -- invest based on graph pattern at low or defined interval basis
+    '''
     serialized={}
-    investment_to_add = 7000
+    investment_to_add = 6000
+    cmp = int(request.GET['cmp'])
+    recommended_stop_loss= 15
+    profit_margin_percentage= 1.2
+
     data= SBC_investment.objects.all()
     serialized_data= SISerializer(data,many=True)
 
@@ -137,13 +167,12 @@ def get_profit_or_loss_sbc(request):
 
     serialized['net_investment']= net_investment
     serialized['stocks_added']= stocks_added
-    cmp = int(request.GET['cmp'])
     
     data1=SBC_profit.objects.all()
     serialized1 = SPSerializer(data1,many=True)
     total_stocks_sold = sum([dict['stocks_sold'] for dict in serialized1.data])
 
-    result= calculate(serialized,cmp,total_stocks_sold)
+    result= calculate(serialized,cmp,total_stocks_sold,profit_margin_percentage,'sbc')
     result1=calculate_profit(serialized1)
     result['net_profit']= result1['net_profit']
     result['total_stocks']= stocks_added -total_stocks_sold

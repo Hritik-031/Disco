@@ -47,3 +47,10 @@ class SBC_profit(models.Model):
     
     def __str__(self):
         return self.date + ' - ' +str(self.profit_amount)
+    
+
+class SBC_highest_price(models.Model):
+    high_share_price = models.FloatField()
+
+    def __str__(self):
+        return f"{self.high_share_price}"

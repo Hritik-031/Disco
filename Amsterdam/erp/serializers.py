@@ -1,4 +1,4 @@
-from .models import ICICIB22_investment,ICICIB22_profit,SBC_investment,SBC_profit
+from .models import ICICIB22_investment,ICICIB22_profit,SBC_investment,SBC_profit,SBC_highest_price
 from rest_framework.serializers import ModelSerializer
 
     
@@ -22,3 +22,7 @@ class SPSerializer(ModelSerializer):
         model= SBC_profit
         fields='__all__'
 
+class SBC_High_price_serializer(ModelSerializer):
+    class Meta:
+        model = SBC_highest_price
+        fields='__all__'
