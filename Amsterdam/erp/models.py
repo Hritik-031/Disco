@@ -12,7 +12,7 @@ class ICICIB22_investment(models.Model):
         db_table = "II"
 
     def __str__(self):
-        return self.date
+        return self.date + '-' + str(self.investment_amount_added)
 
 class ICICIB22_profit(models.Model):
     profit_amount = models.IntegerField()
@@ -35,7 +35,7 @@ class SBC_investment(models.Model):
         db_table = "SI"
 
     def __str__(self):
-        return self.date
+        return self.date + '-' + str(self.investment_amount_added)
 
 class SBC_profit(models.Model):
     profit_amount = models.IntegerField()
@@ -50,6 +50,12 @@ class SBC_profit(models.Model):
     
 
 class SBC_highest_price(models.Model):
+    high_share_price = models.FloatField()
+
+    def __str__(self):
+        return f"{self.high_share_price}"
+    
+class ICICIB22_highest_price(models.Model):
     high_share_price = models.FloatField()
 
     def __str__(self):

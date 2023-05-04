@@ -1,7 +1,7 @@
 from django.shortcuts import render
-from .models import ICICIB22_investment,ICICIB22_profit,SBC_profit,SBC_investment,SBC_highest_price
+from .models import ICICIB22_investment,ICICIB22_profit,SBC_profit,SBC_investment,SBC_highest_price,ICICIB22_highest_price
 from rest_framework.decorators import api_view
-from .serializers import IISerializer,IPSerializer,SISerializer,SPSerializer,SBC_High_price_serializer
+from .serializers import IISerializer,IPSerializer,SISerializer,SPSerializer,SBC_High_price_serializer,ICICIB22_High_price_serializer
 from math import ceil,floor
 
 def calculate(serialized,cmp,total_stocks_sold,profit_margin_percentage,flag):
@@ -26,10 +26,19 @@ def calculate(serialized,cmp,total_stocks_sold,profit_margin_percentage,flag):
             SBC_highest_price.objects.filter(id=1).update(high_share_price = current_avg_share_price)
             percentage_deviation_from_high = 0
         else:
-            percentage_deviation_from_high = f"{float(round((high_price-current_avg_share_price)*100/high_price,2))}"
+            percentage_deviation_from_high = f"{float(round((current_avg_share_price-high_price)*100/high_price,2))}"
+    elif flag == 'icicib22':
+        SBC_high_price_data = ICICIB22_highest_price.objects.get(id=1)
+        serialized_data = ICICIB22_High_price_serializer(SBC_high_price_data)
+        high_price = serialized_data.data['high_share_price']
+        if high_price < current_avg_share_price:
+            ICICIB22_highest_price.objects.filter(id=1).update(high_share_price = current_avg_share_price)
+            percentage_deviation_from_high = 0
+        else:
+            percentage_deviation_from_high = f"{float(round((current_avg_share_price-high_price)*100/high_price,2))}"
     else:
-        percentage_deviation_from_high= '-'
-        high_price = '-'
+        high_price='-'
+        percentage_deviation_from_high = '-'
     ###economic selling shares condition at current condition
     economic_shares_to_sell = ceil(current_no_of_shares_to_sell)
     economic_avg_share_price = current_avg_share_price
@@ -125,7 +134,7 @@ def get_profit_or_loss_icicib(request):
     serialized1 = IPSerializer(data1,many=True)
     total_stocks_sold = sum([dict['stocks_sold'] for dict in serialized1.data])
 
-    result= calculate(serialized,cmp,total_stocks_sold,profit_margin_percentage,'icicib')
+    result= calculate(serialized,cmp,total_stocks_sold,profit_margin_percentage,'icicib22')
     result1=calculate_profit(serialized1)
 
     result['net_profit']= result1['net_profit']
