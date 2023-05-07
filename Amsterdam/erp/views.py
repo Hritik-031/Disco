@@ -3,6 +3,7 @@ from .models import ICICIB22_investment,ICICIB22_profit,SBC_profit,SBC_investmen
 from rest_framework.decorators import api_view
 from .serializers import IISerializer,IPSerializer,SISerializer,SPSerializer,SBC_High_price_serializer,ICICIB22_High_price_serializer
 from math import ceil,floor
+import yfinance as yf
 
 def calculate(serialized,cmp,total_stocks_sold,profit_margin_percentage,flag):
     net_investment = serialized['net_investment']
@@ -21,23 +22,27 @@ def calculate(serialized,cmp,total_stocks_sold,profit_margin_percentage,flag):
     if flag=='sbc':
         SBC_high_price_data = SBC_highest_price.objects.get(id=1)
         serialized_data = SBC_High_price_serializer(SBC_high_price_data)
-        high_price = serialized_data.data['high_share_price']
-        if high_price < current_avg_share_price:
-            SBC_highest_price.objects.filter(id=1).update(high_share_price = current_avg_share_price)
+        sbc_info = yf.Ticker('SBC.NS')
+        high_day_price = sbc_info.info['dayHigh']
+        high_price_db = serialized_data.data['high_share_price']
+        if high_price_db < high_day_price:
+            SBC_highest_price.objects.filter(id=1).update(high_share_price = high_day_price)
             percentage_deviation_from_high = 0
         else:
-            percentage_deviation_from_high = f"{float(round((current_avg_share_price-high_price)*100/high_price,2))}"
+            percentage_deviation_from_high = f"{float(round((current_avg_share_price-high_price_db)*100/high_price_db,2))}"
     elif flag == 'icicib22':
         SBC_high_price_data = ICICIB22_highest_price.objects.get(id=1)
         serialized_data = ICICIB22_High_price_serializer(SBC_high_price_data)
-        high_price = serialized_data.data['high_share_price']
-        if high_price < current_avg_share_price:
-            ICICIB22_highest_price.objects.filter(id=1).update(high_share_price = current_avg_share_price)
+        icicib22_info = yf.Ticker('ICICIB22.NS')
+        high_day_price = icicib22_info.info['dayHigh']
+        high_price_db = serialized_data.data['high_share_price']
+        if high_price_db < high_day_price:
+            ICICIB22_highest_price.objects.filter(id=1).update(high_share_price = high_day_price)
             percentage_deviation_from_high = 0
         else:
-            percentage_deviation_from_high = f"{float(round((current_avg_share_price-high_price)*100/high_price,2))}"
+            percentage_deviation_from_high = f"{float(round((current_avg_share_price-high_price_db)*100/high_price_db,2))}"
     else:
-        high_price='-'
+        high_price_db='-'
         percentage_deviation_from_high = '-'
     ###economic selling shares condition at current condition
     economic_shares_to_sell = ceil(current_no_of_shares_to_sell)
@@ -69,13 +74,12 @@ def calculate(serialized,cmp,total_stocks_sold,profit_margin_percentage,flag):
         target_profit_expectation_price= round(float(profit_margin_percentage/100)*net_investment,2)
         target_avg_share_price= round(float(net_investment+ target_profit_expectation_price)/present_number_of_stocks,2)
         profit_margin_percentage += 0.01
-
     
     if current_diff < 0:
-        return {'current_scenerio':f"{current_diff} RS with {round(current_percent_diff,2)}% loss,current avg share price is {current_avg_share_price} with {percentage_deviation_from_high}% deviation from high {high_price}",
+        return {'current_scenerio':f"{current_diff} RS with {round(current_percent_diff,2)}% loss,current avg share price is {current_avg_share_price} with {percentage_deviation_from_high}% deviation from high {high_price_db}",
                 "target_scenerio": f" target profit is {target_profit_expectation_price} at {profit_margin_percentage}% :: {target_shares_to_sell} shares are required to sell at {target_avg_share_price}RS per share"}
 
-    return {"current_scenerio": f"current profit is {current_diff} RS with {current_percent_diff}% profit :: {current_no_of_shares_to_sell} shares are required to sell. current avg share price is {current_avg_share_price} RS per share with {percentage_deviation_from_high}% deviation from high {high_price}",
+    return {"current_scenerio": f"current profit is {current_diff} RS with {current_percent_diff}% profit :: {current_no_of_shares_to_sell} shares are required to sell. current avg share price is {current_avg_share_price} RS per share with {percentage_deviation_from_high}% deviation from high {high_price_db}",
             "target_scenerio": f" target profit is {target_profit_expectation_price} at {round(profit_margin_percentage,2)}% :: {target_shares_to_sell} shares are required to sell at {target_avg_share_price} RS per share",
             "economic_scenerio": f"economic profit is {economic_diff} RS with {economic_percent_diff}% :: shares to sell {economic_shares_to_sell}. economic avg share price : {round(economic_avg_share_price,2)} RS per share"}
 
