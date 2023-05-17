@@ -44,17 +44,7 @@ def calculate(serialized,cmp,total_stocks_sold,profit_margin_percentage,flag):
     else:
         high_price_db='-'
         percentage_deviation_from_high = '-'
-    ###economic selling shares condition at current condition
-    economic_shares_to_sell = ceil(current_no_of_shares_to_sell)
-    economic_avg_share_price = current_avg_share_price
-    economic_diff = current_diff
 
-    while economic_diff < economic_shares_to_sell*economic_avg_share_price:
-        economic_diff= int(cmp)-net_investment
-        economic_percent_diff = round(float((cmp - net_investment) * 100/ net_investment),2)
-        economic_avg_share_price += 0.01
-        cmp+=1
-    
     ####target
     '''
     this gives the target condition to sell the shares to gain the defined percentage of profit.
@@ -81,7 +71,7 @@ def calculate(serialized,cmp,total_stocks_sold,profit_margin_percentage,flag):
 
     return {"current_scenerio": f"current profit is {current_diff} RS with {current_percent_diff}% profit :: {current_no_of_shares_to_sell} shares are required to sell. current avg share price is {current_avg_share_price} RS per share with {percentage_deviation_from_high}% deviation from high {high_price_db}",
             "target_scenerio": f" target profit is {target_profit_expectation_price} at {round(profit_margin_percentage,2)}% :: {target_shares_to_sell} shares are required to sell at {target_avg_share_price} RS per share",
-            "economic_scenerio": f"economic profit is {economic_diff} RS with {economic_percent_diff}% :: shares to sell {economic_shares_to_sell}. economic avg share price : {round(economic_avg_share_price,2)} RS per share"}
+    }
 
 def calculate_profit(serialized):
     net_profit=0
@@ -121,7 +111,7 @@ def get_profit_or_loss_icicib(request):
     '''
 
     serialized={}
-    investment_to_add= 9000
+    investment_to_add= 6000
     cmp = int(request.GET['cmp'])
     profit_margin_percentage = 1.2 # dont consider this for icicb 
 
@@ -167,7 +157,7 @@ def get_profit_or_loss_sbc(request):
     -- invest based on graph pattern at low or defined interval basis
     '''
     serialized={}
-    investment_to_add = 6000
+    investment_to_add = 9000
     cmp = int(request.GET['cmp'])
     recommended_stop_loss= 15
     profit_margin_percentage= 1.2
